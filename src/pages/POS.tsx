@@ -5,9 +5,9 @@ import { Input } from '@/components/ui/input';
 import { OrderCard, OrderData } from '@/components/ui/order-card';
 import { ProductCard, ProductData } from '@/components/ui/product-card';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useEffect, useState } from 'react';
-
 import { offlineStorage } from '@/lib/offline-storage';
+import { useEffect, useMemo, useState } from 'react';
+
 import {
   Calculator,
   Percent,
@@ -42,8 +42,8 @@ const POS = () => {
   const [orderChannel, setOrderChannel] = useState<'dine_in' | 'takeout' | 'delivery'>('dine_in');
   const [tableNumber, setTableNumber] = useState('');
   const [customerName, setCustomerName] = useState('');
-  const [discount, setDiscount] = useState(0);
-  const [serviceFee] = useState(10); // Taxa de serviço 10%
+  const [discount, setDiscount] = useState<number>(0); // %
+  const [serviceFee] = useState(10); // Taxa de serviço 10% (só para dine_in)
   const [currentOrder, setCurrentOrder] = useState<OrderData | null>(null);
 
   // Mock data - Em produção viria do Supabase
@@ -131,10 +131,10 @@ const POS = () => {
 
   const addToCart = (product: ProductData) => {
     const existingItem = cart.find(item => item.product.id === product.id);
-    
+
     if (existingItem) {
-      setCart(cart.map(item => 
-        item.product.id === product.id 
+      setCart(cart.map(item =>
+        item.product.id === product.id
           ? { ...item, quantity: item.quantity + 1 }
           : item
       ));
@@ -145,10 +145,10 @@ const POS = () => {
 
   const removeFromCart = (productId: string) => {
     const existingItem = cart.find(item => item.product.id === productId);
-    
+
     if (existingItem && existingItem.quantity > 1) {
-      setCart(cart.map(item => 
-        item.product.id === productId 
+      setCart(cart.map(item =>
+        item.product.id === productId
           ? { ...item, quantity: item.quantity - 1 }
           : item
       ));
@@ -168,27 +168,43 @@ const POS = () => {
     return cart.find(item => item.product.id === productId)?.quantity || 0;
   };
 
-  const calculateTotals = () => {
-    const subtotal = cart.reduce((sum, item) => sum + (item.product.price * item.quantity), 0);
-    const discountAmount = subtotal * (discount / 100);
-    const serviceFeeAmount = orderChannel === 'dine_in' ? subtotal * (serviceFee / 100) : 0;
-    const total = subtotal - discountAmount + serviceFeeAmount;
-    
-    return { subtotal, discountAmount, serviceFeeAmount, total };
+  // Desconto: saneamento (aceita vírgula, limita 0–100)
+  const handleDiscountChange = (v: string) => {
+    const normalized = v.replace(',', '.').trim();
+    const n = Number(normalized);
+    if (Number.isNaN(n)) return setDiscount(0);
+    setDiscount(Math.max(0, Math.min(100, n)));
   };
 
-  const { subtotal, discountAmount, serviceFeeAmount, total } = calculateTotals();
+  // Totais derivados com memo
+  const totals = useMemo(() => {
+    const baseSubtotal = cart.reduce((sum, item) => {
+      // Futuro: somar modifiers (priceDelta * quantity)
+      return sum + (item.product.price * item.quantity);
+    }, 0);
+
+    const discountAmount = baseSubtotal * (discount / 100);
+    const serviceFeeAmount = orderChannel === 'dine_in' ? baseSubtotal * (serviceFee / 100) : 0;
+    const total = Math.max(0, baseSubtotal - discountAmount + serviceFeeAmount);
+
+    return {
+      subtotal: baseSubtotal,
+      discountAmount,
+      serviceFeeAmount,
+      total
+    };
+  }, [cart, discount, orderChannel, serviceFee]);
+
+  const { subtotal, discountAmount, serviceFeeAmount, total } = totals;
+
+  const canCheckout =
+    cart.length > 0 &&
+    (orderChannel !== 'dine_in' || !!tableNumber.trim()) &&
+    total > 0;
 
   const processOrder = async () => {
-    if (cart.length === 0) {
-      toast.error('Adicione itens ao pedido');
-      return;
-    }
-
-    if (orderChannel === 'dine_in' && !tableNumber) {
-      toast.error('Informe o número da mesa');
-      return;
-    }
+    if (cart.length === 0) return toast.error('Adicione itens ao pedido');
+    if (orderChannel === 'dine_in' && !tableNumber.trim()) return toast.error('Informe o número da mesa');
 
     try {
       const orderData = {
@@ -196,8 +212,8 @@ const POS = () => {
         tenantId: 'demo_tenant',
         storeId: 'demo_store',
         channel: orderChannel,
-        tableNumber: orderChannel === 'dine_in' ? tableNumber : undefined,
-        customer: customerName ? { name: customerName } : undefined,
+        tableNumber: orderChannel === 'dine_in' ? tableNumber.trim() : undefined,
+        customer: customerName.trim() ? { name: customerName.trim() } : undefined,
         items: cart.map(item => ({
           productId: item.product.id,
           productName: item.product.name,
@@ -216,22 +232,21 @@ const POS = () => {
       };
 
       if (isOnline) {
-        // Tentar enviar diretamente
+        // TODO: enviar pro Supabase aqui
         toast.success('Pedido processado com sucesso!');
       } else {
-        // Salvar offline
         await offlineStorage.saveOfflineOrder(orderData);
         toast.success('Pedido salvo offline. Será sincronizado quando conectar.');
       }
 
-      // Criar order visual para mostrar
+      // Card visual do pedido feito
       const newOrder: OrderData = {
         id: orderData.id,
         orderNumber: String(Math.floor(Math.random() * 1000) + 1).padStart(3, '0'),
         channel: orderChannel,
         status: 'new',
-        tableNumber,
-        customer: customerName ? { name: customerName } : undefined,
+        tableNumber: orderData.tableNumber,
+        customer: orderData.customer,
         items: cart.map(item => ({
           id: item.product.id,
           productName: item.product.name,
@@ -244,9 +259,12 @@ const POS = () => {
 
       setCurrentOrder(newOrder);
       clearCart();
+
+      // some o card após alguns segundos
+      setTimeout(() => setCurrentOrder(null), 6000);
     } catch (error) {
-      toast.error('Erro ao processar pedido');
       console.error(error);
+      toast.error('Erro ao processar pedido');
     }
   };
 
@@ -357,6 +375,7 @@ const POS = () => {
                 <label className="text-sm font-medium">Mesa</label>
                 <Input
                   placeholder="Número da mesa"
+                  inputMode="numeric"
                   value={tableNumber}
                   onChange={(e) => setTableNumber(e.target.value)}
                 />
@@ -394,7 +413,7 @@ const POS = () => {
                           {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.product.price)}
                         </p>
                       </div>
-                      
+
                       <div className="flex items-center gap-2">
                         <Button
                           variant="outline"
@@ -404,11 +423,11 @@ const POS = () => {
                         >
                           -
                         </Button>
-                        
+
                         <span className="w-8 text-center text-sm font-medium">
                           {item.quantity}
                         </span>
-                        
+
                         <Button
                           variant="outline"
                           size="sm"
@@ -432,13 +451,11 @@ const POS = () => {
               <div className="flex items-center gap-2">
                 <Percent className="h-4 w-4" />
                 <Input
-                  type="number"
+                  inputMode="decimal"
                   placeholder="Desconto %"
-                  value={discount}
-                  onChange={(e) => setDiscount(Number(e.target.value))}
+                  value={String(discount)}
+                  onChange={(e) => handleDiscountChange(e.target.value)}
                   className="flex-1"
-                  min="0"
-                  max="100"
                 />
               </div>
 
@@ -448,21 +465,21 @@ const POS = () => {
                   <span>Subtotal:</span>
                   <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(subtotal)}</span>
                 </div>
-                
+
                 {discount > 0 && (
                   <div className="flex justify-between text-success">
                     <span>Desconto ({discount}%):</span>
                     <span>-{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(discountAmount)}</span>
                   </div>
                 )}
-                
+
                 {serviceFeeAmount > 0 && (
                   <div className="flex justify-between">
                     <span>Taxa de serviço ({serviceFee}%):</span>
                     <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(serviceFeeAmount)}</span>
                   </div>
                 )}
-                
+
                 <div className="flex justify-between font-bold text-lg border-t pt-2">
                   <span>Total:</span>
                   <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(total)}</span>
@@ -479,10 +496,11 @@ const POS = () => {
                   <Trash2 className="h-4 w-4 mr-2" />
                   Limpar
                 </Button>
-                
+
                 <Button
                   onClick={processOrder}
                   className="flex-1 bg-gradient-primary hover:bg-gradient-primary/90"
+                  disabled={!canCheckout}
                 >
                   <Calculator className="h-4 w-4 mr-2" />
                   Finalizar
@@ -493,7 +511,7 @@ const POS = () => {
         </div>
       </div>
 
-      {/* Modal/Toast para pedido processado */}
+      {/* Card flutuante do último pedido */}
       {currentOrder && (
         <div className="fixed bottom-4 right-4 max-w-md">
           <OrderCard

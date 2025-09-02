@@ -3,7 +3,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { StatusBadge } from '@/components/ui/status-badge';
-import { syncManager } from '@/lib/sync-manager';
+import { useToast } from '@/components/ui/use-toast';
+import { syncManager } from '@/lib/sync-manager'; // ajuste o path se necessário
 import {
   ArrowRight,
   BarChart3,
@@ -22,8 +23,9 @@ import {
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 
-
 const Index = () => {
+  const { toast } = useToast();
+
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [syncStatus, setSyncStatus] = useState({
     pendingOrders: 0,
@@ -35,17 +37,17 @@ const Index = () => {
   const mockStats = {
     ordersToday: 127,
     revenueToday: 3456.78,
-    avgTicket: 27.20,
+    avgTicket: 27.2,
     avgPrepTime: 12,
     activeOrders: 8,
     urgentOrders: 2
   };
 
   const mockRecentOrders = [
-    { id: '1', number: '145', status: 'preparing', time: '5 min', total: 45.90 },
-    { id: '2', number: '144', status: 'ready', time: '12 min', total: 32.50 },
-    { id: '3', number: '143', status: 'served', time: '15 min', total: 28.70 },
-    { id: '4', number: '142', status: 'new', time: '2 min', total: 52.40 }
+    { id: '1', number: '145', status: 'preparing', time: '5 min', total: 45.9 },
+    { id: '2', number: '144', status: 'ready', time: '12 min', total: 32.5 },
+    { id: '3', number: '143', status: 'delivered', time: '15 min', total: 28.7 }, // <— trocado de 'served' p/ 'delivered'
+    { id: '4', number: '142', status: 'new', time: '2 min', total: 52.4 }
   ];
 
   useEffect(() => {
@@ -71,20 +73,16 @@ const Index = () => {
     };
   }, []);
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL'
-    }).format(value);
-  };
+  const formatCurrency = (value: number) =>
+    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
-  const formatTime = (date: Date | null) => {
-    if (!date) return 'Nunca';
-    return new Intl.DateTimeFormat('pt-BR', {
-      hour: '2-digit',
-      minute: '2-digit'
-    }).format(date);
-  };
+  const formatTime = (date: Date | null) =>
+    !date
+      ? 'Nunca'
+      : new Intl.DateTimeFormat('pt-BR', {
+          hour: '2-digit',
+          minute: '2-digit'
+        }).format(date);
 
   return (
     <div className="min-h-screen bg-background">
@@ -102,7 +100,7 @@ const Index = () => {
             </div>
 
             <div className="flex items-center gap-4">
-              <Badge variant={isOnline ? "default" : "destructive"} className="gap-1">
+              <Badge variant={isOnline ? 'default' : 'destructive'} className="gap-1">
                 {isOnline ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
                 {isOnline ? 'Online' : 'Offline'}
               </Badge>
@@ -126,24 +124,24 @@ const Index = () => {
       {/* Hero Section */}
       <section className="relative overflow-hidden bg-gradient-primary">
         <div className="absolute inset-0">
-          <img 
-            src={heroImage} 
-            alt="Hamburger gourmet" 
+          <img
+            src={heroImage}
+            alt="Hamburger gourmet"
             className="w-full h-full object-cover opacity-20"
           />
         </div>
-        
+
         <div className="relative container mx-auto px-6 py-16">
           <div className="max-w-3xl">
             <h2 className="text-5xl font-bold text-white mb-6">
-              Gerencie sua hamburgueria 
+              Gerencie sua hamburgueria
               <span className="block text-primary-glow">com inteligência</span>
             </h2>
             <p className="text-xl text-white/90 mb-8">
-              PDV offline-first, KDS em tempo real, gestão completa multi-tenant. 
+              PDV offline-first, KDS em tempo real, gestão completa multi-tenant.
               Tudo que você precisa para fazer sua hamburgueria crescer.
             </p>
-            
+
             <div className="flex gap-4">
               <Button asChild size="lg" className="bg-white text-primary hover:bg-white/90 shadow-medium">
                 <Link to="/pos">
@@ -151,7 +149,7 @@ const Index = () => {
                   Abrir PDV
                 </Link>
               </Button>
-              
+
               <Button asChild size="lg" variant="outline" className="border-white text-white hover:bg-white/10">
                 <Link to="/kds">
                   <ChefHat className="h-5 w-5 mr-2" />
@@ -232,20 +230,20 @@ const Index = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {mockRecentOrders.slice(0, 4).map(order => (
+                {mockRecentOrders.slice(0, 4).map((order) => (
                   <div key={order.id} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
                     <div className="flex items-center gap-3">
                       <span className="font-semibold">#{order.number}</span>
                       <StatusBadge variant={order.status as any} />
                     </div>
-                    
+
                     <div className="flex items-center gap-4 text-sm">
                       <span className="text-muted-foreground">{order.time}</span>
                       <span className="font-semibold">{formatCurrency(order.total)}</span>
                     </div>
                   </div>
                 ))}
-                
+
                 <Button asChild variant="outline" className="w-full">
                   <Link to="/kds">
                     Ver todos no KDS <ArrowRight className="h-4 w-4 ml-2" />
@@ -315,20 +313,34 @@ const Index = () => {
                   <span>Sincronizando dados...</span>
                 ) : (
                   <>
-                    <span>{syncStatus.pendingOrders} pedido{syncStatus.pendingOrders > 1 ? 's' : ''} aguardando sincronização</span>
+                    <span>
+                      {syncStatus.pendingOrders} pedido{syncStatus.pendingOrders > 1 ? 's' : ''} aguardando sincronização
+                    </span>
                     {syncStatus.lastSync && (
-                      <span className="text-muted-foreground">
-                        • Última sync: {formatTime(syncStatus.lastSync)}
-                      </span>
+                      <span className="text-muted-foreground">• Última sync: {formatTime(syncStatus.lastSync)}</span>
                     )}
                   </>
                 )}
               </div>
 
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 size="sm"
-                onClick={() => syncManager.forceSync()}
+                onClick={async () => {
+                  try {
+                    await syncManager.forceSync();
+                    toast({
+                      title: 'Sincronização iniciada',
+                      description: 'Verificando pedidos pendentes…'
+                    });
+                  } catch (e: any) {
+                    toast({
+                      title: 'Não foi possível sincronizar',
+                      description: e?.message ?? 'Tente mais tarde.',
+                      variant: 'destructive'
+                    });
+                  }
+                }}
                 disabled={!isOnline || syncStatus.isSyncing}
               >
                 Sincronizar Agora
@@ -345,9 +357,7 @@ const Index = () => {
             <p className="mb-2">
               <strong className="text-foreground">Burger SaaS</strong> - Sistema completo para hamburguerias
             </p>
-            <p className="text-sm">
-              Multi-tenant • Offline-first • Tempo real • Desenvolvido para escalar
-            </p>
+            <p className="text-sm">Multi-tenant • Offline-first • Tempo real • Desenvolvido para escalar</p>
           </div>
         </div>
       </footer>

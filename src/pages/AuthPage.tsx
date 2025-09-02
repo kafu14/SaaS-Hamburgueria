@@ -1,7 +1,8 @@
+// src/pages/AuthPage.tsx
 import { supabase } from "@/lib/supabase";
 import type { Session } from "@supabase/supabase-js";
 import { motion } from "framer-motion";
-import { Eye, EyeOff, Loader2, Lock, Mail, User } from "lucide-react";
+import { Eye, EyeOff, Link as LinkIcon, Loader2, Lock, Mail, User } from "lucide-react";
 import React, { useEffect, useMemo, useState } from "react";
 import { Navigate, Outlet } from "react-router-dom";
 import { twMerge } from "tailwind-merge";
@@ -17,14 +18,13 @@ import { useToast } from "@/components/ui/use-toast";
 
 /**
  * AuthPage
- * - Login e Cadastro (email/senha) em abas
- * - Recuperação de senha por e-mail
- * - Validação com Zod
- * - Redireciona para "/" após login
+ * - Login (senha) + Login por link mágico (OTP)
+ * - Cadastro (senha)
+ * - Recuperação de senha
+ * - Redireciona após login
  */
 export default function AuthPage() {
   const [tab, setTab] = useState<"login" | "signup">("login");
-  const { toast } = useToast();
 
   // Se já logado, manda embora
   const [checking, setChecking] = useState(true);
@@ -35,9 +35,9 @@ export default function AuthPage() {
       setSession(data.session);
       setChecking(false);
     });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-    });
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, s) => setSession(s));
     return () => subscription.unsubscribe();
   }, []);
 
@@ -89,7 +89,8 @@ function Loader({ className = "" }: { className?: string }) {
   return <Loader2 className={twMerge("h-5 w-5 text-slate-600", className)} />;
 }
 
-// ======= LOGIN =======
+/* ===================== LOGIN ===================== */
+
 const loginSchema = z.object({
   email: z.string().email("E-mail inválido"),
   password: z.string().min(6, "Senha deve ter ao menos 6 caracteres"),
@@ -98,9 +99,11 @@ const loginSchema = z.object({
 function LoginForm({ onDone }: { onDone: () => void }) {
   const { toast } = useToast();
   const [showPass, setShowPass] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [loadingPwd, setLoadingPwd] = useState(false);
+  const [loadingOtp, setLoadingOtp] = useState(false);
   const [form, setForm] = useState({ email: "", password: "" });
 
+  // Login por senha
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const parse = loginSchema.safeParse(form);
@@ -109,7 +112,7 @@ function LoginForm({ onDone }: { onDone: () => void }) {
       return;
     }
     try {
-      setLoading(true);
+      setLoadingPwd(true);
       const { error } = await supabase.auth.signInWithPassword({
         email: form.email.trim(),
         password: form.password,
@@ -120,7 +123,43 @@ function LoginForm({ onDone }: { onDone: () => void }) {
     } catch (err: any) {
       toast({ title: "Falha ao entrar", description: err?.message ?? "Tente novamente.", variant: "destructive" });
     } finally {
-      setLoading(false);
+      setLoadingPwd(false);
+    }
+  };
+
+  // Login por link mágico (OTP)
+  const onMagicLink = async () => {
+    const email = form.email.trim();
+    if (!email) {
+      return toast({ title: "Informe o e-mail", description: "Coloque o e-mail para enviar o link mágico." });
+    }
+    try {
+      setLoadingOtp(true);
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          shouldCreateUser: true,
+          emailRedirectTo: window.location.origin + "/auth/confirm",
+        },
+      });
+      if (error) {
+        // Trata rate limit (429) de forma amigável
+        if (error.status === 429) {
+          return toast({
+            title: "Aguarde um instante",
+            description: "Você já solicitou um link. Tente novamente em alguns segundos.",
+          });
+        }
+        throw error;
+      }
+      toast({
+        title: "Link enviado",
+        description: "Cheque seu e-mail e clique no link para entrar.",
+      });
+    } catch (err: any) {
+      toast({ title: "Não foi possível enviar", description: err?.message ?? "Tente mais tarde.", variant: "destructive" });
+    } finally {
+      setLoadingOtp(false);
     }
   };
 
@@ -130,7 +169,6 @@ function LoginForm({ onDone }: { onDone: () => void }) {
       return toast({ title: "Informe o e-mail", description: "Coloque o e-mail para enviar o link de redefinição." });
     }
     try {
-      setLoading(true);
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/auth/reset`,
       });
@@ -138,8 +176,6 @@ function LoginForm({ onDone }: { onDone: () => void }) {
       toast({ title: "Enviado", description: "Cheque seu e-mail para redefinir a senha." });
     } catch (err: any) {
       toast({ title: "Não foi possível enviar", description: err?.message ?? "Tente mais tarde.", variant: "destructive" });
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -159,6 +195,7 @@ function LoginForm({ onDone }: { onDone: () => void }) {
           />
         </div>
       </div>
+
       <div className="space-y-2">
         <Label htmlFor="password">Senha</Label>
         <div className="relative">
@@ -181,19 +218,26 @@ function LoginForm({ onDone }: { onDone: () => void }) {
           </button>
         </div>
       </div>
-      <div className="flex items-center justify-between">
+
+      <div className="flex items-center justify-between gap-2">
         <Button type="button" variant="ghost" className="px-0" onClick={onReset}>
           Esqueci minha senha
         </Button>
-        <Button type="submit" disabled={loading}>
-          {loading ? <Loader className="animate-spin" /> : "Entrar"}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button type="button" variant="secondary" onClick={onMagicLink} disabled={loadingOtp}>
+            {loadingOtp ? <Loader className="animate-spin" /> : <><LinkIcon className="mr-2 h-4 w-4" /> Enviar link</>}
+          </Button>
+          <Button type="submit" disabled={loadingPwd}>
+            {loadingPwd ? <Loader className="animate-spin" /> : "Entrar"}
+          </Button>
+        </div>
       </div>
     </form>
   );
 }
 
-// ======= SIGNUP =======
+/* ===================== SIGNUP ===================== */
+
 const signupSchema = z.object({
   name: z.string().min(2, "Informe seu nome"),
   email: z.string().email("E-mail inválido"),
@@ -222,7 +266,7 @@ function SignupForm({ onDone }: { onDone: () => void }) {
     }
     try {
       setLoading(true);
-      // Cria usuário; envia e-mail de confirmação padrão do Supabase
+      // Cria usuário; envia e-mail de confirmação do Supabase
       const { error } = await supabase.auth.signUp({
         email: form.email.trim(),
         password: form.password,
@@ -238,7 +282,7 @@ function SignupForm({ onDone }: { onDone: () => void }) {
         description: "Enviamos um e-mail para confirmar sua conta.",
       });
 
-      onDone();
+      onDone(); // volta pra aba de login
     } catch (err: any) {
       toast({ title: "Falha no cadastro", description: err?.message ?? "Tente novamente.", variant: "destructive" });
     } finally {
@@ -317,7 +361,8 @@ function SignupForm({ onDone }: { onDone: () => void }) {
   );
 }
 
-// ======= ProtectedRoute (use nas rotas privadas) =======
+/* ===================== PROTECTED ROUTE ===================== */
+
 export function ProtectedRoute() {
   const [checking, setChecking] = useState(true);
   const [authed, setAuthed] = useState(false);
@@ -327,7 +372,9 @@ export function ProtectedRoute() {
       setAuthed(!!data.session);
       setChecking(false);
     });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => setAuthed(!!session));
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_e, session) => setAuthed(!!session));
     return () => subscription.unsubscribe();
   }, []);
 
@@ -342,7 +389,8 @@ export function ProtectedRoute() {
   return authed ? <Outlet /> : <Navigate to="/auth" replace />;
 }
 
-// ======= Utils =======
+/* ===================== UTILS ===================== */
+
 function passwordStrength(pw: string) {
   let score = 0;
   if (pw.length >= 6) score++;
