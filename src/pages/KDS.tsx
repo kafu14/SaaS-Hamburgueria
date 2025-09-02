@@ -1,17 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import { OrderCard, OrderData } from '@/components/ui/order-card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { 
-  Volume2, 
-  VolumeX, 
-  RefreshCw, 
-  Filter,
-  Clock,
-  TrendingUp,
-  AlertTriangle
+import { Card, CardContent } from '@/components/ui/card';
+import { OrderCard, OrderData } from '@/components/ui/order-card';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useEffect, useState } from 'react';
+
+import {
+  AlertTriangle,
+  RefreshCw,
+  Volume2,
+  VolumeX
 } from 'lucide-react';
 import { toast } from 'sonner';
 

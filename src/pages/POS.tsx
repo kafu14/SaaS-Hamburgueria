@@ -1,28 +1,23 @@
-import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ProductCard, ProductData } from '@/components/ui/product-card';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { OrderCard, OrderData } from '@/components/ui/order-card';
-import { StatusBadge } from '@/components/ui/status-badge';
-import { 
-  ShoppingCart, 
-  Search, 
-  Wifi, 
-  WifiOff, 
-  CreditCard, 
-  Banknote,
-  Plus,
-  Trash2,
+import { ProductCard, ProductData } from '@/components/ui/product-card';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useEffect, useState } from 'react';
+
+import { offlineStorage } from '@/lib/offline-storage';
+import {
   Calculator,
   Percent,
-  Users
+  Search,
+  ShoppingCart,
+  Trash2,
+  Wifi,
+  WifiOff
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { syncManager } from '@/lib/sync-manager';
-import { offlineStorage } from '@/lib/offline-storage';
 
 interface CartItem {
   product: ProductData;

@@ -2,37 +2,28 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useEffect } from "react";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
-import { supabase } from "./lib/supabase";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+
+// Páginas existentes
 import Index from "./pages/Index";
 import KDS from "./pages/KDS";
-import NotFound from "./pages/NotFound";
 import POS from "./pages/POS";
+
+
+// Auth
+import AuthPage, { ProtectedRoute } from "@/pages/AuthPage"; // já criei pra você
 
 const queryClient = new QueryClient();
 
+// Telas simples para confirmação/reset (pode virar página separada depois)
+function ConfirmEmail() {
+  return <div className="p-6">E-mail confirmado. Você já pode entrar.</div>;
+}
+function ResetPassword() {
+  return <div className="p-6">Defina sua nova senha aqui (implementar form com updateUser).</div>;
+}
+
 const App = () => {
-  useEffect(() => {
-    const fetchData = async () => {
-      if (!supabase) {
-        console.error("Supabase client não inicializado");
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from("products")
-        .select("id, name, price");
-      if (error) {
-        console.error("Erro ao buscar produtos:", error);
-      } else {
-        console.log("Produtos:", data);
-      }
-    };
-
-    fetchData();
-  }, []);
-
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
@@ -40,11 +31,20 @@ const App = () => {
         <Sonner />
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/pos" element={<POS />} />
-            <Route path="/kds" element={<KDS />} />
-            {/* catch-all */}
-            <Route path="*" element={<NotFound />} />
+            {/* Público */}
+            <Route path="/auth" element={<AuthPage />} />
+            <Route path="/auth/confirm" element={<ConfirmEmail />} />
+            <Route path="/auth/reset" element={<ResetPassword />} />
+
+            {/* Privado */}
+            <Route element={<ProtectedRoute />}>
+              <Route path="/" element={<Index />} />
+              <Route path="/pos" element={<POS />} />
+              <Route path="/kds" element={<KDS />} />
+            </Route>
+
+            {/* 404 → manda pro início (que é protegido) */}
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </BrowserRouter>
       </TooltipProvider>

@@ -1,27 +1,27 @@
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import heroImage from '@/assets/hero-burger.jpg';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { StatusBadge } from '@/components/ui/status-badge';
-import { 
-  ShoppingCart, 
-  ChefHat, 
-  TrendingUp, 
-  Users, 
-  DollarSign,
-  Clock,
-  Wifi,
-  WifiOff,
+import { syncManager } from '@/lib/sync-manager';
+import {
   ArrowRight,
   BarChart3,
+  ChefHat,
+  Clock,
+  DollarSign,
   Settings,
+  ShoppingCart,
   Store,
-  Target
+  Target,
+  TrendingUp,
+  Users,
+  Wifi,
+  WifiOff
 } from 'lucide-react';
-import heroImage from '@/assets/hero-burger.jpg';
-import { syncManager } from '@/lib/sync-manager';
-import { offlineStorage } from '@/lib/offline-storage';
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+
 
 const Index = () => {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
